@@ -1,10 +1,14 @@
 package edu.umich.jgracik.eecs441.wewrite;
 
-import android.os.Bundle;
 import android.app.Activity;
+import android.content.Intent;
+import android.os.Bundle;
+import android.support.v4.app.DialogFragment;
+import android.support.v4.app.FragmentActivity;
 import android.view.Menu;
+import android.view.View;
 
-public class MainActivity extends Activity
+public class MainActivity extends FragmentActivity
 {
 
   @Override
@@ -22,5 +26,27 @@ public class MainActivity extends Activity
     getMenuInflater().inflate(R.menu.main, menu);
     return true;
   }
+  
+  //method for new file
+  public void mainCreateFile(View view) 
+  {
+    DialogFragment filePopup = new NewFileDialogFragment();
+    filePopup.show(getSupportFragmentManager(), "newfile");
+  }
+  
+  //method for new collaboration session
+  public void mainCreateSession(View view) 
+  {
+    Intent newSessionIntent = new Intent(this, TextEditorActivity.class);
+    startActivity(newSessionIntent);
+  }
+  
+  //method for joining an existing collab session
+  public void mainJoinSession(View view) 
+  {
+    
+  }
 
 }
+
+
