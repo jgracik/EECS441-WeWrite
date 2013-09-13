@@ -15,13 +15,18 @@ public class UndoableTextEditor
 {
   private static final String TAG = "UndoableTextEditor";
   private static final int HISTORY_SIZE = 5;
+  private static final int UNDO_OP = 1;
+  private static final int REDO_OP = 2;
   
   private EditText editor;          // underlying view
   private Stack<HistoryEntry> undoHistory;
   private Stack<HistoryEntry> redoHistory;
-  private EditorListener listener;  
+  private Stack<HistoryEntry> moveEventStack; // needed to help make move atomic
+  private EditorListener e_listener;  
   private DragListener d_listener;
+  
   private boolean undoingOrRedoing = false; // avoids adding undo/redo events to history
+  private boolean textMoveEvent = false;    // drag & drop move event occuring
   
   @SuppressLint("NewApi")
   public UndoableTextEditor(EditText edittext)
@@ -29,10 +34,73 @@ public class UndoableTextEditor
     editor = edittext;
     undoHistory = new Stack<HistoryEntry>();
     redoHistory = new Stack<HistoryEntry>();
-    listener = new EditorListener();
+    moveEventStack = new Stack<HistoryEntry>();
+    e_listener = new EditorListener();
     d_listener = new DragListener();
-    editor.addTextChangedListener(listener);
+    editor.addTextChangedListener(e_listener);
     editor.setOnDragListener(d_listener);
+  }
+  
+  public HistoryEntry performEdit(HistoryEntry e, int type)
+  {
+    Editable editor_text = editor.getText();
+    int endIdx = e.beginIndex;
+    CharSequence csReplace;
+    CharSequence csOther;
+    
+    if(type == UNDO_OP) {
+      csReplace = e.oldText;
+      csOther = e.newText;
+    } else {
+      csReplace = e.newText;
+      csOther = e.oldText;
+    }
+    
+    try {
+      if(e.newText != null) {
+        endIdx += csOther.length();
+      }
+      
+      editor_text.replace(e.beginIndex, endIdx, csReplace);
+      Log.d(TAG, "replace okay");
+    } catch(IndexOutOfBoundsException ex) {
+      Log.d(TAG, "performEdit exeption: " + ex.toString());
+      Log.d(TAG, "beginIdx=" + e.beginIndex + ", endIdx=" + endIdx + ", editor length=" + editor_text.length() + ", replace: [" + csReplace + "]");
+
+      if(editor_text.length() < e.beginIndex) {
+        int appendIdx = editor_text.length();
+        editor_text.append(csReplace);
+        e.beginIndex = appendIdx; // update new index for future undos or redos
+        Log.d(TAG, "appending");
+      } else {
+        editor_text.insert(e.beginIndex, csReplace);
+        Log.d(TAG, "inserting");
+      }
+    }
+    
+    if(e.cascade != null) {
+      Log.d(TAG, "cascading");
+      performEdit(e.cascade, type);
+    }
+    return e;
+  }
+  
+  public HistoryEntry reverseCascade(HistoryEntry h)
+  {
+    if(h == null) return null;
+    if(h.cascade == null) return h;
+    
+    HistoryEntry prev = null;
+    HistoryEntry curr = h;
+    
+    while(curr != null) {
+      HistoryEntry next = curr.cascade;
+      curr.cascade = prev;
+      prev = curr;
+      curr = next; 
+    }
+    
+    return prev;
   }
   
   public void undo()
@@ -44,23 +112,13 @@ public class UndoableTextEditor
     
     undoingOrRedoing = true;
     
-    Editable editor_text = editor.getText();
     HistoryEntry undoEvent = undoHistory.pop();
-    
-    int endIdx = undoEvent.beginIndex;
-    if(undoEvent.newText != null) {
-      endIdx += undoEvent.newText.length();
-    }
-    
-    editor_text.replace(undoEvent.beginIndex, endIdx, undoEvent.oldText);
-    
-    redoHistory.push(undoEvent);
-    //undoEvent = null;
+    HistoryEntry ev = performEdit(undoEvent, UNDO_OP);
+    redoHistory.push(reverseCascade(ev));
     
     undoingOrRedoing = false;
     
     Log.d(TAG, "performed undo operation, returning from undo()");
-    
   }
   
   public void redo()
@@ -71,23 +129,14 @@ public class UndoableTextEditor
     }
     
     undoingOrRedoing = true;
-    
-    Editable editor_text = editor.getText();
+
     HistoryEntry redoEvent = redoHistory.pop();
-    
-    int endIdx = redoEvent.beginIndex;
-    if(redoEvent.oldText != null) {
-      endIdx += redoEvent.oldText.length();
-    }
-    
-    editor_text.replace(redoEvent.beginIndex, endIdx, redoEvent.newText);
-    undoHistory.push(redoEvent);
-    //redoEvent = null;
+    HistoryEntry ev = performEdit(redoEvent, REDO_OP);
+    undoHistory.push(reverseCascade(ev));
     
     undoingOrRedoing = false;
     
-    Log.d(TAG, "performed undo operation, returning from undo()");
-    
+    Log.d(TAG, "performed redo operation, returning from redo()");
   }
   
   
@@ -112,11 +161,25 @@ public class UndoableTextEditor
       change = s.subSequence(start, start + count);
       Log.d(TAG, "listener in onTextChanged, start: " + start + ", before: " + before + ", change: [" + change + "]");
       
+      if(textMoveEvent) {
+        moveEventStack.push(new HistoryEntry(start, orig, change));
+        Log.d(TAG, "pushed event onto moveEventStack, onTextChanged returning");
+        return;
+      }
+      
       undoHistory.push(new HistoryEntry(start, orig, change));
+      
+      // swype-like keyboard in android sometimes duplicates events
+      if(change.toString().equals(orig.toString())) {
+        Log.d(TAG, "duplicate");
+        undoHistory.pop();
+      }
+      
       if(undoHistory.size() > HISTORY_SIZE) {
         undoHistory.remove(0);  // remove from bottom of stack
       }
-      Log.d(TAG, "listener returning from method onTextChanged, updated lastEvent");
+      
+      Log.d(TAG, "listener returning from method onTextChanged, updated undoHistory");
     }
 
     public void afterTextChanged(Editable s)
@@ -131,14 +194,66 @@ public class UndoableTextEditor
   {
     public boolean onDrag(View v, DragEvent event)
     {
-      Log.d(TAG, "onDrag called");
       if(event.getAction() == DragEvent.ACTION_DROP) {
-        Log.d(TAG, "drag event ACTION_DROP");
-        Log.d(TAG, "drag event clip desc: " + event.getClipDescription().toString());
+        // let editorlistener know that a move event is occuring
+        textMoveEvent = true;
+        
+        Log.d(TAG, "drag event ACTION_DROP, clip desc: " + event.getClipDescription().toString());
       }
       else if(event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
+        // get rid of android's automatic drag & drop spaces 
+        // and insert correct undo history
+        
+        // stack size should be 3 for move to start or end, 4 for anywhere else
+        if(moveEventStack.size() < 3) {
+          Log.d(TAG, "move event ended with stack size < 3");
+          textMoveEvent = false;
+          return false;
+        }
+        
+        undoingOrRedoing = true;
+        for(int i = 1; i < moveEventStack.size(); i++) {
+          moveEventStack.elementAt(i).cascade = moveEventStack.elementAt(i-1);
+        }
+        
+        /*
+        HistoryEntry deleteEvent = moveEventStack.pop();
+        performEdit(deleteEvent, UNDO_OP);
+        HistoryEntry insertEvent = moveEventStack.pop();
+        performEdit(insertEvent, UNDO_OP);
+        
+        
+        int newInsIdx = insertEvent.beginIndex;
+        
+        while(!moveEventStack.empty()) {
+          HistoryEntry ev = moveEventStack.pop();
+          performEdit(ev, UNDO_OP);
+          newInsIdx = ev.beginIndex;
+        }
+        
+        insertEvent.beginIndex = newInsIdx;
+        
+        // the insert and delete together make up the move event
+        // use the cascade to make sure they always happen together
+        insertEvent.cascade = deleteEvent;
+        
+        undoHistory.push(insertEvent);
+        if(undoHistory.size() > HISTORY_SIZE) {
+          undoHistory.remove(0);
+        }
+        
+        Log.d(TAG, "redoing insert event");
+        performEdit(insertEvent, REDO_OP);
+        
+        */
+        undoHistory.push(moveEventStack.peek());
+        undoingOrRedoing = false;
+        
+        textMoveEvent = false;
+        
         Log.d(TAG, "drag event ACTION_ENDED");
       }
+      
       return false;
     }
   }
@@ -149,13 +264,16 @@ public class UndoableTextEditor
     int beginIndex;
     CharSequence oldText;
     CharSequence newText;
+    HistoryEntry cascade;
     
     public HistoryEntry(int idx, CharSequence orig, CharSequence replace)
     {
       beginIndex = idx;
       oldText = orig;
       newText = replace;
+      cascade = null;
     }
+    
   }
   
   
