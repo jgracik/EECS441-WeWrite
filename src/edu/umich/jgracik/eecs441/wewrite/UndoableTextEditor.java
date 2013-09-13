@@ -249,6 +249,8 @@ public class UndoableTextEditor
         undoHistory.push(moveEventStack.peek());
         undoingOrRedoing = false;
         
+        moveEventStack.clear(); // clear for next move event
+        
         textMoveEvent = false;
         
         Log.d(TAG, "drag event ACTION_ENDED");
