@@ -17,7 +17,7 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
         <activity
-            android:name="edu.umich.zhuwei.jgracik.eecs441.wewrite.MainActivity"
+            android:name="edu.umich.jgracik_zhuwei.eecs441.wewrite.MainActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -26,9 +26,9 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="edu.umich.zhuwei.jgracik.eecs441.wewrite.TextEditorActivity"
+            android:name="edu.umich.jgracik_zhuwei.eecs441.wewrite.TextEditorActivity"
             android:label="@string/title_activity_text_editor"
-            android:parentActivityName="edu.umich.zhuwei.jgracik.eecs441.wewrite.MainActivity" >
+            android:parentActivityName="edu.umich.jgracik_zhuwei.eecs441.wewrite.MainActivity" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="edu.umich.jgracik.eecs441.wewrite.MainActivity" />
