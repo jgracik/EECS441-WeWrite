@@ -26,6 +26,7 @@ public class TextEditorActivity extends Activity
     setupActionBar();
     
     EditText editor = (EditText) findViewById(R.id.editor_obj);
+    editor.setLongClickable(false);
     undoableWrapper = new UndoableTextEditor(editor);
   }
 

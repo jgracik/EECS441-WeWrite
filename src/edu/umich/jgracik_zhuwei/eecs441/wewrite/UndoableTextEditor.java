@@ -6,39 +6,45 @@ import android.annotation.SuppressLint;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.view.DragEvent;
-import android.view.View;
-import android.view.View.OnDragListener;
 import android.widget.EditText;
 
 public class UndoableTextEditor
 {
   private static final String TAG = "UndoableTextEditor";
-  private static final int HISTORY_SIZE = 5;
+  private static final int HISTORY_SIZE = 10;
   private static final int UNDO_OP = 1;
   private static final int REDO_OP = 2;
   
-  private EditText editor;          // underlying view
+  private EditText editor;  // underlying view
+  
   private Stack<HistoryEntry> undoHistory;
   private Stack<HistoryEntry> redoHistory;
-  private Stack<HistoryEntry> moveEventStack; // needed to help make move atomic
-  private EditorListener e_listener;  
-  private DragListener d_listener;
+
+  private EditorListener e_listener; 
   
-  private boolean undoingOrRedoing = false; // avoids adding undo/redo events to history
-  private boolean textMoveEvent = false;    // drag & drop move event occuring
+  private boolean undoingOrRedoing;   // avoids adding undo/redo events to history
+  
+  //private Stack<HistoryEntry> moveEventStack; // needed to help make move atomic
+  //private DragListener d_listener;
+  //private boolean textMoveEvent = false;    // drag & drop move event occuring
   
   @SuppressLint("NewApi")
   public UndoableTextEditor(EditText edittext)
   {
+    undoingOrRedoing = false;
     editor = edittext;
     undoHistory = new Stack<HistoryEntry>();
     redoHistory = new Stack<HistoryEntry>();
-    moveEventStack = new Stack<HistoryEntry>();
     e_listener = new EditorListener();
-    d_listener = new DragListener();
     editor.addTextChangedListener(e_listener);
-    editor.setOnDragListener(d_listener);
+    
+    /*
+     * This is specifically to handle move events via drag & drop
+     * No longer needed per spec update
+     */
+    //moveEventStack = new Stack<HistoryEntry>();
+    //d_listener = new DragListener();
+    //editor.setOnDragListener(d_listener);
   }
   
   public HistoryEntry performEdit(HistoryEntry e, int type)
@@ -140,6 +146,25 @@ public class UndoableTextEditor
   }
   
   
+  /* Undo history object - holds before and after text with index */
+  private class HistoryEntry
+  {
+    int beginIndex;
+    CharSequence oldText;
+    CharSequence newText;
+    HistoryEntry cascade;
+    
+    public HistoryEntry(int idx, CharSequence orig, CharSequence replace)
+    {
+      beginIndex = idx;
+      oldText = orig;
+      newText = replace;
+      cascade = null;
+    }
+    
+  }
+  
+  
   /* Class to monitor changes to the EditText field and save last change */
   private class EditorListener implements TextWatcher
   {
@@ -161,11 +186,17 @@ public class UndoableTextEditor
       change = s.subSequence(start, start + count);
       Log.d(TAG, "listener in onTextChanged, start: " + start + ", before: " + before + ", change: [" + change + "]");
       
+      /*
+       * This is specifically to handle move events via drag & drop
+       * No longer needed per spec update
+       */
+      /*
       if(textMoveEvent) {
         moveEventStack.push(new HistoryEntry(start, orig, change));
         Log.d(TAG, "pushed event onto moveEventStack, onTextChanged returning");
         return;
       }
+      */
       
       undoHistory.push(new HistoryEntry(start, orig, change));
       
@@ -185,10 +216,17 @@ public class UndoableTextEditor
     public void afterTextChanged(Editable s)
     {
       // do nothing
+      Log.d(TAG, "afterTextChanged");
     }
     
   } 
   
+  
+  /*
+   * This is specifically to handle move events via drag & drop
+   * No longer needed per spec update
+   */
+  /*
   @SuppressLint("NewApi")
   private class DragListener implements OnDragListener
   {
@@ -216,36 +254,6 @@ public class UndoableTextEditor
           moveEventStack.elementAt(i).cascade = moveEventStack.elementAt(i-1);
         }
         
-        /*
-        HistoryEntry deleteEvent = moveEventStack.pop();
-        performEdit(deleteEvent, UNDO_OP);
-        HistoryEntry insertEvent = moveEventStack.pop();
-        performEdit(insertEvent, UNDO_OP);
-        
-        
-        int newInsIdx = insertEvent.beginIndex;
-        
-        while(!moveEventStack.empty()) {
-          HistoryEntry ev = moveEventStack.pop();
-          performEdit(ev, UNDO_OP);
-          newInsIdx = ev.beginIndex;
-        }
-        
-        insertEvent.beginIndex = newInsIdx;
-        
-        // the insert and delete together make up the move event
-        // use the cascade to make sure they always happen together
-        insertEvent.cascade = deleteEvent;
-        
-        undoHistory.push(insertEvent);
-        if(undoHistory.size() > HISTORY_SIZE) {
-          undoHistory.remove(0);
-        }
-        
-        Log.d(TAG, "redoing insert event");
-        performEdit(insertEvent, REDO_OP);
-        
-        */
         undoHistory.push(moveEventStack.peek());
         undoingOrRedoing = false;
         
@@ -259,24 +267,7 @@ public class UndoableTextEditor
       return false;
     }
   }
-  
-  /* Undo history object - holds before and after text with index */
-  private class HistoryEntry
-  {
-    int beginIndex;
-    CharSequence oldText;
-    CharSequence newText;
-    HistoryEntry cascade;
-    
-    public HistoryEntry(int idx, CharSequence orig, CharSequence replace)
-    {
-      beginIndex = idx;
-      oldText = orig;
-      newText = replace;
-      cascade = null;
-    }
-    
-  }
+  */
   
   
 }

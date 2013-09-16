@@ -8,14 +8,6 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context=".TextEditorActivity" >
-
-    <EditText android:id="@+id/editor_obj"
-        android:layout_weight="1"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:gravity="top|left"
-        android:inputType="textNoSuggestions"
-        android:hint="@string/type_here" />
     
     <LinearLayout
 	    android:layout_width="match_parent"
@@ -24,24 +16,35 @@
 	    android:orientation="horizontal" >
 	    
         <Button 
-		    android:layout_width="wrap_content"
+            android:layout_weight="1"
+		    android:layout_width="0dp"
 		    android:layout_height="wrap_content"
 		    android:onClick="undoOperation"
 		    android:text="@string/button_undo" />
 	
 		<Button 
-		    android:layout_width="wrap_content"
+		    android:layout_weight="1"
+		    android:layout_width="0dp"
 		    android:layout_height="wrap_content"
 		    android:onClick="saveFile"
 		    android:text="@string/button_save" />
 		
 		<Button 
-		    android:layout_width="wrap_content"
+		    android:layout_weight="1"
+		    android:layout_width="0dp"
 		    android:layout_height="wrap_content"
 		    android:onClick="redoOperation"
 		    android:text="@string/button_redo" />
 		
 	    
 	</LinearLayout>
+	
+    <EditText android:id="@+id/editor_obj"
+        android:layout_weight="1"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:gravity="top|left"
+        android:inputType="textMultiLine"
+        android:hint="@string/type_here" />
 
 </LinearLayout>
