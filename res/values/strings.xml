@@ -12,17 +12,20 @@
     <string name="button_joinSession">Join Session</string>
 
     <!-- dialogs -->
-    <string name="enterFilename">Enter new filename</string>
     <string name="enterSessionID">Enter session id</string>
     <string name="button_cancel">Cancel</string>
     <string name="button_create">Create</string>
     <string name="button_join">Join</string>
+    <string name="dialog_owner_leaving">You are the owner of this session.  Do you want to delete it when you leave?</string>
+    <string name="button_leave_only">Leave only</string>
+    <string name="button_leave_delete">Leave and delete</string>
     
     <!-- editor -->
     <string name="title_activity_text_editor">WeWrite</string>
     <string name="button_save">Save</string>
     <string name="button_undo">Undo</string>
     <string name="button_redo">Redo</string>
+    <string name="button_leave">Leave</string>
     <string name="type_here">Type here</string>
 
 </resources>

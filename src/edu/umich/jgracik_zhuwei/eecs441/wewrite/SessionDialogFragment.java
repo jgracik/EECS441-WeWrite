@@ -1,11 +1,9 @@
 package edu.umich.jgracik_zhuwei.eecs441.wewrite;
 
-import java.io.FileOutputStream;
-
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.DialogFragment;
 import android.view.LayoutInflater;
@@ -19,7 +17,7 @@ import android.widget.Toast;
  * http://developer.android.com/guide/topics/ui/dialogs.html
  */
 
-public class NewFileDialogFragment extends DialogFragment
+public class SessionDialogFragment extends DialogFragment
 {
   
   @Override
@@ -31,42 +29,29 @@ public class NewFileDialogFragment extends DialogFragment
     // show the new_file_dialog view (edittext field)
     final View v = inflater.inflate(R.layout.enter_text_dialog, null);
     builder.setView(v)
-      .setTitle("Enter filename")
+      .setTitle("Enter session id")
       // create action buttons
-      .setPositiveButton(R.string.type_here, new DialogInterface.OnClickListener() // create
+      .setPositiveButton(R.string.button_create, new DialogInterface.OnClickListener() // create
       {
         
         @Override
         public void onClick(DialogInterface dialog, int which)
         {
           // get user-entered filename from dialog text field
-          EditText fname_field = (EditText) v.findViewById(R.id.enter_text_dialog_field);
-          String fname = fname_field.getText().toString();
+          EditText id_field = (EditText) v.findViewById(R.id.enter_text_dialog_field);
+          long sessionId = 0;
           
-          // make sure file does not exist, return if it does
-          String[] saved_files = getActivity().fileList();
-          for(int i = 0; i < saved_files.length; i++) {
-            if(0 == fname.compareTo(saved_files[i])) {
-              Toast failMsg = Toast.makeText(getActivity(), "File already exists", Toast.LENGTH_LONG);
-              failMsg.show();
-              return;
-            }
+          Intent joinSessionIntent = new Intent(getActivity(), TextEditorActivity.class);
+          
+          try {
+            sessionId = Long.parseLong(id_field.getText().toString());
+            joinSessionIntent.putExtra(MainActivity.IS_JOIN, true);
+            joinSessionIntent.putExtra(MainActivity.SESSION_ID, sessionId);
+          } catch (NumberFormatException e) {
+            Toast.makeText(getActivity(), "Session id must be numeric only", Toast.LENGTH_LONG).show();
           }
           
-          // ok to create file
-          // should probably redo this to handle FNF and IO exceptions
-          try
-          {
-            FileOutputStream fos = getActivity().openFileOutput(fname, Context.MODE_PRIVATE);
-            fos.close();
-            Toast confirmMsg = Toast.makeText(getActivity(), "File successfully created", Toast.LENGTH_LONG);
-            confirmMsg.show();
-          }
-          catch( Exception e )
-          {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-          }
+          startActivity(joinSessionIntent);
         }
       })
       .setNegativeButton(R.string.button_cancel, new DialogInterface.OnClickListener() // cancel
@@ -75,7 +60,7 @@ public class NewFileDialogFragment extends DialogFragment
         @Override
         public void onClick(DialogInterface dialog, int which)
         {
-          NewFileDialogFragment.this.getDialog().cancel();
+          SessionDialogFragment.this.getDialog().cancel();
         }
       });
     

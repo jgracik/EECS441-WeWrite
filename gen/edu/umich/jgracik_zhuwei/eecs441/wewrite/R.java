@@ -185,8 +185,8 @@ containing a value of this type.
     public static final class id {
         public static final int action_settings=0x7f050007;
         public static final int editor_obj=0x7f050005;
+        public static final int enter_text_dialog_field=0x7f050006;
         public static final int hybrid=0x7f050004;
-        public static final int new_file_dialog_field=0x7f050006;
         public static final int none=0x7f050000;
         public static final int normal=0x7f050001;
         public static final int satellite=0x7f050002;
@@ -195,7 +195,7 @@ containing a value of this type.
     public static final class layout {
         public static final int activity_main=0x7f030000;
         public static final int activity_text_editor=0x7f030001;
-        public static final int new_file_dialog=0x7f030002;
+        public static final int enter_text_dialog=0x7f030002;
     }
     public static final class menu {
         public static final int main=0x7f090000;
@@ -227,15 +227,18 @@ containing a value of this type.
         [CHAR LIMIT=70] 
          */
         public static final int auth_client_using_bad_version_title=0x7f06000f;
-        public static final int button_cancel=0x7f060021;
-        public static final int button_create=0x7f060022;
-        public static final int button_join=0x7f060023;
+        public static final int button_cancel=0x7f060020;
+        public static final int button_create=0x7f060021;
+        public static final int button_join=0x7f060022;
         public static final int button_joinSession=0x7f06001e;
+        public static final int button_leave=0x7f06002a;
+        public static final int button_leave_delete=0x7f060025;
+        public static final int button_leave_only=0x7f060024;
         public static final int button_newFile=0x7f06001c;
         public static final int button_newSession=0x7f06001d;
-        public static final int button_redo=0x7f060027;
-        public static final int button_save=0x7f060025;
-        public static final int button_undo=0x7f060026;
+        public static final int button_redo=0x7f060029;
+        public static final int button_save=0x7f060027;
+        public static final int button_undo=0x7f060028;
         /**  Button in confirmation dialog to enable Google Play services.  Clicking it
         will direct user to application settings of Google Play services where they
         can enable it [CHAR LIMIT=40] 
@@ -291,10 +294,10 @@ containing a value of this type.
         /**  Long form sign-in button text [CHAR LIMIT=30] 
          */
         public static final int common_signin_button_text_long=0x7f06000e;
+        public static final int dialog_owner_leaving=0x7f060023;
         /**  dialogs 
          */
-        public static final int enterFilename=0x7f06001f;
-        public static final int enterSessionID=0x7f060020;
+        public static final int enterSessionID=0x7f06001f;
         /**  main activity 
          */
         public static final int greeting=0x7f06001b;
@@ -303,8 +306,8 @@ containing a value of this type.
         public static final int title_activity_main=0x7f060018;
         /**  editor 
          */
-        public static final int title_activity_text_editor=0x7f060024;
-        public static final int type_here=0x7f060028;
+        public static final int title_activity_text_editor=0x7f060026;
+        public static final int type_here=0x7f06002b;
         public static final int url=0x7f060019;
     }
     public static final class style {

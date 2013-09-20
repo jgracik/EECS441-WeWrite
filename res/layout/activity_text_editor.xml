@@ -21,7 +21,14 @@
 		    android:layout_height="wrap_content"
 		    android:onClick="undoOperation"
 		    android:text="@string/button_undo" />
-	
+		
+		<Button 
+		    android:layout_weight="1"
+		    android:layout_width="0dp"
+		    android:layout_height="wrap_content"
+		    android:onClick="redoOperation"
+		    android:text="@string/button_redo" />
+		
 		<Button 
 		    android:layout_weight="1"
 		    android:layout_width="0dp"
@@ -33,8 +40,8 @@
 		    android:layout_weight="1"
 		    android:layout_width="0dp"
 		    android:layout_height="wrap_content"
-		    android:onClick="redoOperation"
-		    android:text="@string/button_redo" />
+		    android:onClick="leaveSession"
+		    android:text="@string/button_leave" />
 		
 	    
 	</LinearLayout>

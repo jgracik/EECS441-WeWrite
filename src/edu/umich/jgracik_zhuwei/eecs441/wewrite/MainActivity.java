@@ -6,10 +6,12 @@ import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentActivity;
 import android.view.Menu;
 import android.view.View;
-import edu.umich.jgracik_zhuwei.eecs441.wewrite.R;
+//import edu.umich.jgracik_zhuwei.eecs441.wewrite.R;
 
 public class MainActivity extends FragmentActivity
 {
+  public static final String IS_JOIN = "edu.umich.jgracik_zhuwei.eecs441.wewrite.IS_JOIN";
+  public static final String SESSION_ID = "edu.umich.jgracik_zhuwei.eecs441.wewrite.SESSION_ID";
 
   @Override
   protected void onCreate(Bundle savedInstanceState)
@@ -38,13 +40,16 @@ public class MainActivity extends FragmentActivity
   public void mainCreateSession(View view) 
   {
     Intent newSessionIntent = new Intent(this, TextEditorActivity.class);
+    newSessionIntent.putExtra(IS_JOIN, false);
+    newSessionIntent.putExtra(SESSION_ID, 0L);
     startActivity(newSessionIntent);
   }
   
   //method for joining an existing collab session
   public void mainJoinSession(View view) 
   {
-    
+    DialogFragment joinSessionPopup = new SessionDialogFragment();
+    joinSessionPopup.show(getSupportFragmentManager(), "joinsession");
   }
 
 }

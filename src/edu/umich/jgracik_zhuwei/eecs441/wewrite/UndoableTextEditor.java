@@ -217,6 +217,7 @@ public class UndoableTextEditor
     {
       // do nothing
       Log.d(TAG, "afterTextChanged");
+      Log.d(TAG, s.toString());
     }
     
   } 
