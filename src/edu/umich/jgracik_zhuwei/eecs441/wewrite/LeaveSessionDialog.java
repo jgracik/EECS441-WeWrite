@@ -39,7 +39,7 @@ public class LeaveSessionDialog extends DialogFragment
     AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
     builder.setMessage(R.string.dialog_owner_leaving)
       // create action buttons
-      .setPositiveButton(R.string.button_leave_only, new DialogInterface.OnClickListener() // create
+      .setPositiveButton(R.string.button_leave_delete, new DialogInterface.OnClickListener() // create
       {
         @Override
         public void onClick(DialogInterface dialog, int which)
@@ -47,7 +47,7 @@ public class LeaveSessionDialog extends DialogFragment
           listener.onDialogPositiveClick(LeaveSessionDialog.this);
         }
       })
-      .setNegativeButton(R.string.button_leave_delete, new DialogInterface.OnClickListener() // cancel
+      .setNegativeButton(R.string.button_leave_only, new DialogInterface.OnClickListener() // cancel
       {
         
         @Override
