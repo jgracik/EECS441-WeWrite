@@ -28,6 +28,7 @@ import edu.umich.imlc.collabrify.client.CollabrifySession;
 import edu.umich.imlc.collabrify.client.exceptions.CollabrifyException;
 import edu.umich.imlc.collabrify.client.exceptions.ConnectException;
 
+import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor;
 import edu.umich.jgracik_zhuwei.eecs441.wewrite.LeaveSessionDialog.LeaveSessionListener;
 //import edu.umich.jgracik_zhuwei.eecs441.wewrite.R;
 
@@ -37,7 +38,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   private UndoableTextEditor undoableWrapper;
   private CollabrifyListener collabrifyListener;
   private CollabrifyClient client;
-  private EditText editor;
+  private EditTextCursor editor;
   private boolean connected;
   private boolean getLatestEvent;
   
@@ -58,14 +59,16 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     Log.d(TAG, "sessId: " + sessId);
     
     /* TODO
+     * ----
      * 
      */
     
     connected = false;
-    editor = (EditText) findViewById(R.id.editor_obj);
+    editor = (EditTextCursor) findViewById(R.id.editor_obj);
     editor.setLongClickable(false);
     editor.setEnabled(false);   // do not allow editing until connection is established
     editor.setFocusable(false); // ^^^
+    editor.setHint("Connecting, please wait...");
     undoableWrapper = new UndoableTextEditor(editor);
     
     collabrifyListener = new CollabrifyAdapter() 
@@ -122,12 +125,33 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         {
           Log.i(TAG, "collabrifyListener: session id is: " + client.currentSessionId());
           connected = true;
+          runOnUiThread(new Runnable()
+          {
+            @Override
+            public void run() {
+              enableTextEditor();
+            }
+          });
         }
         catch( CollabrifyException e )
         {
           // TODO Auto-generated catch block
           e.printStackTrace();
         }
+      }
+      
+      @Override
+      public void onSessionEnd(long id)
+      {
+        Log.i(TAG, "collabrify listener: session ended");
+        connected = false;
+        runOnUiThread(new Runnable()
+        {
+          @Override
+          public void run() {
+            showOwnerDisconnectNotice();
+          }
+        });
       }
       
       @Override
@@ -163,26 +187,43 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       ce.printStackTrace();
     }
     
-    Random rand = new Random();
-    String sessName = "editor" + rand.nextInt(90000) + 10000;
-    ArrayList<String> tags = new ArrayList<String>();
-    tags.add("test_jgracik_zhuwei");
-    
-    Log.i(TAG, "attempting to create session with name: " + sessName);
-    
-    try {
-      client.createSession(sessName, tags, null, 0);
-      Toast createMsg = Toast.makeText(this, "Connecting to new session...", Toast.LENGTH_LONG);
-      createMsg.show();
-      //while(!client.inSession()) { /* block until ready */ }
-      //Toast successMsg = Toast.makeText(this,  "Connected!", Toast.LENGTH_LONG);
-      //successMsg.show();
-    } catch (ConnectException ce) {
-      Log.e(TAG, "ConnectException, unable to create collabrify session");
-      ce.printStackTrace();
-    } catch (CollabrifyException ce) {
-      Log.e(TAG, "CollabrifyException, unable to create collabrify session");
-      ce.printStackTrace();
+    if(isJoin) {
+      try
+      {
+        client.joinSession(sessId, null);
+        Toast.makeText(this, "Connecting to session...", Toast.LENGTH_SHORT).show();
+      }
+      catch( ConnectException e1 )
+      {
+        // TODO Auto-generated catch block
+        e1.printStackTrace();
+        Toast.makeText(this, "Unable to connect to session", Toast.LENGTH_LONG).show();
+      }
+      catch( CollabrifyException e1 )
+      {
+        // TODO Auto-generated catch block
+        e1.printStackTrace();
+        Toast.makeText(this, "Unable to connect to session", Toast.LENGTH_LONG).show();
+      }
+    } else {
+      Random rand = new Random();
+      String sessName = "editor" + rand.nextInt(90000) + 10000;
+      ArrayList<String> tags = new ArrayList<String>();
+      tags.add("test_jgracik_zhuwei");
+      
+      Log.i(TAG, "attempting to create session with name: " + sessName);
+      
+      try {
+        client.createSession(sessName, tags, null, 0);
+        Toast createMsg = Toast.makeText(this, "Connecting to new session...", Toast.LENGTH_LONG);
+        createMsg.show();
+      } catch (ConnectException ce) {
+        Log.e(TAG, "ConnectException, unable to create collabrify session");
+        ce.printStackTrace();
+      } catch (CollabrifyException ce) {
+        Log.e(TAG, "CollabrifyException, unable to create collabrify session");
+        ce.printStackTrace();
+    }
     }
   }
 
@@ -261,6 +302,8 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       try {
         client.leaveSession(false);
         connected = false;
+        Toast.makeText(this, "Disconnected", Toast.LENGTH_LONG).show();
+        finish();
       } catch (CollabrifyException ce) {
         ce.printStackTrace();
       }
@@ -279,11 +322,17 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       editor.setEnabled(true);
       editor.setFocusable(true);
       editor.setFocusableInTouchMode(true);
+      editor.setHint("Type here");
       editor.requestFocus();
       Log.d(TAG, "EDITOR ENABLED");
     } catch(Exception e) {
       e.printStackTrace();
     }
+  }
+  
+  protected void showOwnerDisconnectNotice()
+  {
+    Toast.makeText(this, "Disconnected - session deleted by owner", Toast.LENGTH_LONG).show();
   }
 
   @Override

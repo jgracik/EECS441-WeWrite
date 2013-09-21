@@ -2,6 +2,10 @@ package edu.umich.jgracik_zhuwei.eecs441.wewrite;
 
 import java.util.Stack;
 
+import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor.onSelectionChangedListener;
+import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor;
+
+
 import android.annotation.SuppressLint;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -15,7 +19,7 @@ public class UndoableTextEditor
   private static final int UNDO_OP = 1;
   private static final int REDO_OP = 2;
   
-  private EditText editor;  // underlying view
+  private EditTextCursor editor;  // underlying view
   
   private Stack<HistoryEntry> undoHistory;
   private Stack<HistoryEntry> redoHistory;
@@ -29,7 +33,7 @@ public class UndoableTextEditor
   //private boolean textMoveEvent = false;    // drag & drop move event occuring
   
   @SuppressLint("NewApi")
-  public UndoableTextEditor(EditText edittext)
+  public UndoableTextEditor(EditTextCursor edittext)
   {
     undoingOrRedoing = false;
     editor = edittext;
@@ -37,6 +41,7 @@ public class UndoableTextEditor
     redoHistory = new Stack<HistoryEntry>();
     e_listener = new EditorListener();
     editor.addTextChangedListener(e_listener);
+    editor.addOnSelectionChangedListener(e_listener);
     
     /*
      * This is specifically to handle move events via drag & drop
@@ -166,7 +171,7 @@ public class UndoableTextEditor
   
   
   /* Class to monitor changes to the EditText field and save last change */
-  private class EditorListener implements TextWatcher
+  private class EditorListener implements TextWatcher, onSelectionChangedListener
   {
     private CharSequence orig, change;
     
@@ -219,8 +224,16 @@ public class UndoableTextEditor
       Log.d(TAG, "afterTextChanged");
       Log.d(TAG, s.toString());
     }
+
+    @Override
+    public void onSelectionChanged(int selStart, int selEnd)
+    {
+      // TODO Auto-generated method stub
+      /* send cursor change event to server */
+      Log.i(TAG, "cursor location changed to " + selStart);
+    }
     
-  } 
+  }
   
   
   /*

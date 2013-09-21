@@ -28,7 +28,8 @@
         <activity
             android:name="edu.umich.jgracik_zhuwei.eecs441.wewrite.TextEditorActivity"
             android:label="@string/title_activity_text_editor"
-            android:parentActivityName="edu.umich.jgracik_zhuwei.eecs441.wewrite.MainActivity" >
+            android:parentActivityName="edu.umich.jgracik_zhuwei.eecs441.wewrite.MainActivity"
+            android:screenOrientation="portrait" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="edu.umich.jgracik.eecs441.wewrite.MainActivity" />
