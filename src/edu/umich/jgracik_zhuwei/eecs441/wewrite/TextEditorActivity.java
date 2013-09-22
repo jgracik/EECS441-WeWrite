@@ -16,7 +16,6 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
 import android.widget.Toast;
 
 //import edu.umich.imlc.android.common.Utils;
@@ -29,17 +28,18 @@ import edu.umich.imlc.collabrify.client.exceptions.CollabrifyException;
 import edu.umich.imlc.collabrify.client.exceptions.ConnectException;
 
 import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor;
+import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditorEventProto.EditorEvent;
 import edu.umich.jgracik_zhuwei.eecs441.wewrite.LeaveSessionDialog.LeaveSessionListener;
+import edu.umich.jgracik_zhuwei.eecs441.wewrite.UndoableTextEditor.EditorEventListener;
 //import edu.umich.jgracik_zhuwei.eecs441.wewrite.R;
 
-public class TextEditorActivity extends FragmentActivity implements LeaveSessionListener
+public class TextEditorActivity extends FragmentActivity implements LeaveSessionListener, EditorEventListener
 {
   private static final String TAG = "TextEditorActivity";
   private UndoableTextEditor undoableWrapper;
   private CollabrifyListener collabrifyListener;
   private CollabrifyClient client;
   private EditTextCursor editor;
-  private boolean connected;
   private boolean getLatestEvent;
   
   @SuppressLint("NewApi")
@@ -58,18 +58,13 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     Log.d(TAG, "isJoin: " + isJoin);
     Log.d(TAG, "sessId: " + sessId);
     
-    /* TODO
-     * ----
-     * 
-     */
-    
-    connected = false;
     editor = (EditTextCursor) findViewById(R.id.editor_obj);
     editor.setLongClickable(false);
     editor.setEnabled(false);   // do not allow editing until connection is established
     editor.setFocusable(false); // ^^^
     editor.setHint("Connecting, please wait...");
     undoableWrapper = new UndoableTextEditor(editor);
+    undoableWrapper.setEditorEventListener(this);
     
     collabrifyListener = new CollabrifyAdapter() 
     {
@@ -101,7 +96,6 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       public void onSessionCreated(long id)
       {
         Log.i(TAG, "collabrifyListener: session created, id = " + id);
-        connected = true;
         runOnUiThread(new Runnable()
         {
           @Override
@@ -124,7 +118,6 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         try
         {
           Log.i(TAG, "collabrifyListener: session id is: " + client.currentSessionId());
-          connected = true;
           runOnUiThread(new Runnable()
           {
             @Override
@@ -144,7 +137,6 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       public void onSessionEnd(long id)
       {
         Log.i(TAG, "collabrify listener: session ended");
-        connected = false;
         runOnUiThread(new Runnable()
         {
           @Override
@@ -223,7 +215,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       } catch (CollabrifyException ce) {
         Log.e(TAG, "CollabrifyException, unable to create collabrify session");
         ce.printStackTrace();
-    }
+      }
     }
   }
 
@@ -301,7 +293,6 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     if(owner == null || owner.getId() != myId) {
       try {
         client.leaveSession(false);
-        connected = false;
         Toast.makeText(this, "Disconnected", Toast.LENGTH_LONG).show();
         finish();
       } catch (CollabrifyException ce) {
@@ -319,6 +310,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   {
     try {
       Toast.makeText(this, "Connected!", Toast.LENGTH_SHORT).show();
+      undoableWrapper.setUserID(client.currentSessionParticipantId());
       editor.setEnabled(true);
       editor.setFocusable(true);
       editor.setFocusableInTouchMode(true);
@@ -341,8 +333,6 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     if(client.inSession()) {
       try {
         client.leaveSession(true);
-        connected = false;
-        Toast.makeText(this, "Disconnected and session deleted", Toast.LENGTH_LONG).show();
         finish();
       } catch (CollabrifyException ce) {
         ce.printStackTrace();
@@ -354,15 +344,31 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   public void onDialogNegativeClick(DialogFragment dialog)
   {
     if(client.inSession()) {
-      try {
+      try 
+      {
         client.leaveSession(false);
         Toast.makeText(this, "Disconnected", Toast.LENGTH_LONG).show();
-        connected = false;
         finish();
       } catch (CollabrifyException ce) {
         ce.printStackTrace();
       }
     }
+  }
+
+  @Override
+  public void sendEvent(EditorEvent ee, String type)
+  {
+    if(client.inSession()) {
+      try
+      {
+        client.broadcast(ee.toByteArray(), type);
+      }
+      catch( CollabrifyException e )
+      {
+        e.printStackTrace();
+      }
+    }
+    
   }
 
 }

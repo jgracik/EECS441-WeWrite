@@ -1,0 +1,11 @@
+package edu.umich.jgracik_zhuwei.eecs441.wewrite;
+
+option java_outer_classname = "EditorEventProto";
+
+message EditorEvent {
+    optional int32 beginIndex = 1;
+    optional string oldText = 2;
+    optional string newText = 3;
+    required int32 newCursorIdx = 4;
+    required int64 userid = 5;
+}

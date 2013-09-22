@@ -4,13 +4,12 @@ import java.util.Stack;
 
 import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor.onSelectionChangedListener;
 import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor;
-
+import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditorEventProto.EditorEvent;
 
 import android.annotation.SuppressLint;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.widget.EditText;
 
 public class UndoableTextEditor
 {
@@ -25,20 +24,38 @@ public class UndoableTextEditor
   private Stack<HistoryEntry> redoHistory;
 
   private EditorListener e_listener; 
+  private long userid;
+  private boolean connected;
   
   private boolean undoingOrRedoing;   // avoids adding undo/redo events to history
+  private boolean generatingEvent;    // set true when text is being changed
   
   //private Stack<HistoryEntry> moveEventStack; // needed to help make move atomic
   //private DragListener d_listener;
   //private boolean textMoveEvent = false;    // drag & drop move event occuring
   
+  /* Interface for notifying other classes of editor changes
+   * TextEditorActivity implements this to know what to broadcast and when
+   */
+  public interface EditorEventListener {
+    public void sendEvent(EditorEvent ee, String type);
+  }
+  
+  private EditorEventListener eel;
+  
   @SuppressLint("NewApi")
   public UndoableTextEditor(EditTextCursor edittext)
   {
     undoingOrRedoing = false;
+    generatingEvent = false;
+    
     editor = edittext;
+    connected = false;
+    userid = 0L;
+    
     undoHistory = new Stack<HistoryEntry>();
     redoHistory = new Stack<HistoryEntry>();
+    
     e_listener = new EditorListener();
     editor.addTextChangedListener(e_listener);
     editor.addOnSelectionChangedListener(e_listener);
@@ -50,6 +67,15 @@ public class UndoableTextEditor
     //moveEventStack = new Stack<HistoryEntry>();
     //d_listener = new DragListener();
     //editor.setOnDragListener(d_listener);
+  }
+  
+  public void setUserID(long id) {
+    userid = id;
+    connected = true;
+  }
+  
+  public void setEditorEventListener(EditorEventListener e) {
+    eel = e;
   }
   
   public HistoryEntry performEdit(HistoryEntry e, int type)
@@ -73,6 +99,11 @@ public class UndoableTextEditor
       }
       
       editor_text.replace(e.beginIndex, endIdx, csReplace);
+      
+      /*
+       * TODO BROADCAST CHANGE EVENT
+       */
+      
       Log.d(TAG, "replace okay");
     } catch(IndexOutOfBoundsException ex) {
       Log.d(TAG, "performEdit exeption: " + ex.toString());
@@ -82,9 +113,19 @@ public class UndoableTextEditor
         int appendIdx = editor_text.length();
         editor_text.append(csReplace);
         e.beginIndex = appendIdx; // update new index for future undos or redos
+        
+        /*
+         * TODO BROADCAST CHANGE EVENT
+         */
+        
         Log.d(TAG, "appending");
       } else {
         editor_text.insert(e.beginIndex, csReplace);
+        
+        /*
+         * TODO BROADCAST CHANGE EVENT
+         */
+        
         Log.d(TAG, "inserting");
       }
     }
@@ -174,11 +215,15 @@ public class UndoableTextEditor
   private class EditorListener implements TextWatcher, onSelectionChangedListener
   {
     private CharSequence orig, change;
+    private int beginIdx, cursorIdx;
+    private boolean duplicate = false;
     
     public void beforeTextChanged(CharSequence s, int start, int count, int after)
     {
       // no need to save changes resulting from an undo or redo
       if(undoingOrRedoing) return;
+      
+      generatingEvent = true;
       
       orig = s.subSequence(start, start + count);
       Log.d(TAG, "listener in beforeTextChanged, start: " + start + ", count: " + count + ", orig: [" + orig + "]");
@@ -206,8 +251,10 @@ public class UndoableTextEditor
       undoHistory.push(new HistoryEntry(start, orig, change));
       
       // swype-like keyboard in android sometimes duplicates events
+      // due to text prediction
       if(change.toString().equals(orig.toString())) {
         Log.d(TAG, "duplicate");
+        duplicate = true;
         undoHistory.pop();
       }
       
@@ -223,14 +270,39 @@ public class UndoableTextEditor
       // do nothing
       Log.d(TAG, "afterTextChanged");
       Log.d(TAG, s.toString());
+      
+      // create EditorEvent object
+      EditorEvent textChange = EditorEvent.newBuilder()
+          .setBeginIndex(beginIdx)
+          .setNewText(change.toString())
+          .setOldText(orig.toString())
+          .setNewCursorIdx(editor.getSelectionStart())
+          .setUserid(userid)
+      .build();
+      
+      // broadcast text change event
+      if(connected && !duplicate) {
+        eel.sendEvent(textChange, "TEXT_CHANGE");
+      }
+      
+      duplicate = false;
+      generatingEvent = false;
     }
 
     @Override
     public void onSelectionChanged(int selStart, int selEnd)
     {
-      // TODO Auto-generated method stub
       /* send cursor change event to server */
       Log.i(TAG, "cursor location changed to " + selStart);
+      if(!generatingEvent) {
+        cursorIdx = selStart;
+        
+        /*
+         * TODO BROADCAST CURSOR CHANGE EVENT
+         * keep track of time last cursor change was sent
+         * and only update after some elapsed time threshold
+         */
+      }
     }
     
   }

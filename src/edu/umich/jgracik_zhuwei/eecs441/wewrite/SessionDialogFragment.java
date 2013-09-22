@@ -31,7 +31,7 @@ public class SessionDialogFragment extends DialogFragment
     builder.setView(v)
       .setTitle("Enter session id")
       // create action buttons
-      .setPositiveButton(R.string.button_create, new DialogInterface.OnClickListener() // create
+      .setPositiveButton(R.string.button_join, new DialogInterface.OnClickListener() // create
       {
         
         @Override
