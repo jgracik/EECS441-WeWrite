@@ -25,12 +25,6 @@
 	    <Button
 	        android:layout_width="match_parent"
 	        android:layout_height="wrap_content" 
-	        android:onClick="mainCreateFile"
-	        android:text="@string/button_newFile" />
-	    
-	    <Button
-	        android:layout_width="match_parent"
-	        android:layout_height="wrap_content" 
 	        android:onClick="mainCreateSession"
 	        android:text="@string/button_newSession" />
 	    
