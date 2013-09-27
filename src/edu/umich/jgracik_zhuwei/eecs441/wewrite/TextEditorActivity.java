@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.Intent;
@@ -12,10 +14,12 @@ import android.os.Bundle;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.NavUtils;
+import android.text.Editable;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.Toast;
 
 //import edu.umich.imlc.android.common.Utils;
@@ -40,6 +44,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   private CollabrifyListener collabrifyListener;
   private CollabrifyClient client;
   private EditTextCursor editor;
+  private EditText serverText;
   private boolean getLatestEvent;
   
   @SuppressLint("NewApi")
@@ -66,6 +71,8 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     undoableWrapper = new UndoableTextEditor(editor);
     undoableWrapper.setEditorEventListener(this);
     
+    serverText = new EditText(this);
+    
     collabrifyListener = new CollabrifyAdapter() 
     {
       
@@ -81,6 +88,33 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       {
         Log.i(TAG, "collabrifyListener: event received");
         Log.i(TAG, "### orderId: " + orderId + ", subId: " + subId + ", eventType: " + eventType);
+        EditorEvent fromServer;
+        
+        if(eventType.equals("TEXT_CHANGE")) {
+          try
+          {
+            fromServer = EditorEvent.parseFrom(data);
+            applyTextEvent(fromServer);
+            if(fromServer.getUserid() != client.currentSessionParticipantId()) {
+              undoableWrapper.setNeedToSync(true);
+              undoableWrapper.updateCursorOffset(fromServer);
+            }
+          }
+          catch( InvalidProtocolBufferException e )
+          {
+            e.printStackTrace();
+          }
+        } else if(eventType.equals("CURSOR_CHANGE")) {
+          try
+          {
+            fromServer = EditorEvent.parseFrom(data);
+            /* TODO update cursor position hash map */
+          }
+          catch( InvalidProtocolBufferException e )
+          {
+            e.printStackTrace();
+          }
+        }
       }
       
       @Override
@@ -128,7 +162,6 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         }
         catch( CollabrifyException e )
         {
-          // TODO Auto-generated catch block
           e.printStackTrace();
         }
       }
@@ -187,19 +220,17 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       }
       catch( ConnectException e1 )
       {
-        // TODO Auto-generated catch block
         e1.printStackTrace();
         Toast.makeText(this, "Unable to connect to session", Toast.LENGTH_LONG).show();
       }
       catch( CollabrifyException e1 )
       {
-        // TODO Auto-generated catch block
         e1.printStackTrace();
         Toast.makeText(this, "Unable to connect to session", Toast.LENGTH_LONG).show();
       }
     } else {
       Random rand = new Random();
-      String sessName = "editor" + rand.nextInt(90000) + 10000;
+      String sessName = "editor" + (rand.nextInt(90000) + 10000);
       ArrayList<String> tags = new ArrayList<String>();
       tags.add("test_jgracik_zhuwei");
       
@@ -207,7 +238,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       
       try {
         client.createSession(sessName, tags, null, 0);
-        Toast createMsg = Toast.makeText(this, "Connecting to new session...", Toast.LENGTH_LONG);
+        Toast createMsg = Toast.makeText(this, "Connecting to new session...", Toast.LENGTH_SHORT);
         createMsg.show();
       } catch (ConnectException ce) {
         Log.e(TAG, "ConnectException, unable to create collabrify session");
@@ -259,6 +290,45 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     return super.onOptionsItemSelected(item);
   }
   
+  // server events only
+  public void applyTextEvent(EditorEvent ev)
+  {
+    Log.d(TAG, "in applyTextEvent");
+    Editable e_text = serverText.getText();
+    int endIdx = ev.getBeginIndex();
+    CharSequence csReplace = ev.getNewText();
+    CharSequence csOther = ev.getOldText();
+    
+    try {
+      if(csReplace != null) {
+        endIdx += csOther.length();
+      }
+      
+      e_text.replace(ev.getBeginIndex(), endIdx, csReplace);
+      
+      Log.d("SERVERTEXT " + TAG, "replace okay, beginIdx=" + ev.getBeginIndex() + ", endIdx = " + endIdx + ", csReplace = " + csReplace);
+      Log.d("SERVERTEXT " + TAG, "server's text is : " + e_text.toString());
+    } catch(IndexOutOfBoundsException ex) {
+      // text has been deleted, so endIndex is now outside 
+      // the editor's range
+      Log.d("SERVERTEXT " + TAG, "performEdit exeption: " + ex.toString());
+      Log.d("SERVERTEXT " + TAG, "beginIdx=" + ev.getBeginIndex() + ", endIdx=" + endIdx + ", editor length=" + e_text.length() + ", replace: [" + csReplace + "]");
+
+      if(e_text.length() < ev.getBeginIndex()) {
+        // beginIndex is outside the editor's range: append
+        //int appendIdx = e_text.length();
+        e_text.append(csReplace);
+
+        Log.d("SERVERTEXT " + TAG, "appending");
+      } else {
+        // beginIndex is inside range, end is outside
+        e_text.insert(ev.getBeginIndex(), csReplace);
+        
+        Log.d("SERVERTEXT " + TAG, "inserting");
+      }
+    }
+  }
+  
   public void undoOperation(View view)
   {
     undoableWrapper.undo();
@@ -266,7 +336,11 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   
   public void saveFile(View view)
   {
-    
+    /* TODO 
+     * TEMPORARY - force the local editor to sync with the server-only editor
+     * for preliminary testing
+     */
+    undoableWrapper.sync(serverText.getText().toString());
   }
   
   public void redoOperation(View view)
@@ -358,6 +432,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   @Override
   public void sendEvent(EditorEvent ee, String type)
   {
+    Log.d(TAG, "SENDING BUFFER\n" + ee.toString());
     if(client.inSession()) {
       try
       {
