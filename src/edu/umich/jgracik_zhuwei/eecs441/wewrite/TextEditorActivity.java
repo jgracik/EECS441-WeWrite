@@ -46,6 +46,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   private EditTextCursor editor;
   private EditText serverText;
   private boolean getLatestEvent;
+  private long sessId;
   
   @SuppressLint("NewApi")
   @Override
@@ -58,7 +59,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     
     Intent intent = getIntent();
     boolean isJoin = intent.getBooleanExtra(MainActivity.IS_JOIN, false);
-    long sessId = intent.getLongExtra(MainActivity.SESSION_ID, 0L);
+    sessId = intent.getLongExtra(MainActivity.SESSION_ID, 0L);
     
     Log.d(TAG, "isJoin: " + isJoin);
     Log.d(TAG, "sessId: " + sessId);
@@ -139,6 +140,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       public void onSessionCreated(long id)
       {
         Log.i(TAG, "collabrifyListener: session created, id = " + id);
+        sessId = id;
         runOnUiThread(new Runnable()
         {
           @Override
@@ -392,7 +394,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   protected void enableTextEditor()
   {
     try {
-      Toast.makeText(this, "Connected - session id is " + client.currentSessionId(), Toast.LENGTH_LONG).show();
+      Toast.makeText(this, "Connected! Session id is " + sessId, Toast.LENGTH_LONG).show();
       undoableWrapper.setUserID(client.currentSessionParticipantId());
       editor.setEnabled(true);
       editor.setFocusable(true);
