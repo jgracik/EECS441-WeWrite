@@ -83,12 +83,12 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       }
       
       @Override
-      public void onReceiveEvent(final long orderId, int subId,
+      public void onReceiveEvent(final long orderId, final int subId,
           String eventType, final byte[] data) 
       {
         Log.i(TAG, "collabrifyListener: event received");
         Log.i(TAG, "### orderId: " + orderId + ", subId: " + subId + ", eventType: " + eventType);
-        EditorEvent fromServer;
+        final EditorEvent fromServer;
         
         if(eventType.equals("TEXT_CHANGE")) {
           try
@@ -98,6 +98,15 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
             if(fromServer.getUserid() != client.currentSessionParticipantId()) {
               undoableWrapper.setNeedToSync(true);
               undoableWrapper.updateCursorOffset(fromServer);
+            } else {
+              runOnUiThread(new Runnable() {
+                @Override
+                public void run()
+                {
+                  undoableWrapper.confirmEvent(subId, fromServer);              
+                }
+                
+              }); 
             }
           }
           catch( InvalidProtocolBufferException e )
@@ -383,7 +392,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   protected void enableTextEditor()
   {
     try {
-      Toast.makeText(this, "Connected!", Toast.LENGTH_SHORT).show();
+      Toast.makeText(this, "Connected - session id is " + client.currentSessionId(), Toast.LENGTH_LONG).show();
       undoableWrapper.setUserID(client.currentSessionParticipantId());
       editor.setEnabled(true);
       editor.setFocusable(true);
@@ -430,13 +439,13 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   }
 
   @Override
-  public void sendEvent(EditorEvent ee, String type)
+  public int sendEvent(EditorEvent ee, String type)
   {
     Log.d(TAG, "SENDING BUFFER\n" + ee.toString());
     if(client.inSession()) {
       try
       {
-        client.broadcast(ee.toByteArray(), type);
+        return client.broadcast(ee.toByteArray(), type);
       }
       catch( CollabrifyException e )
       {
@@ -444,6 +453,14 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       }
     }
     
+    return Integer.MIN_VALUE;
+    
+  }
+  
+  @Override
+  public void triggerSync()
+  {
+    undoableWrapper.sync(serverText.getText().toString());
   }
 
 }
