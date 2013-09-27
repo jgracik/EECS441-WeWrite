@@ -27,5 +27,8 @@
     <string name="button_redo">Redo</string>
     <string name="button_leave">Leave</string>
     <string name="type_here">Type here</string>
+    
+    <!-- action bar -->
+    <string name="session_id">Display Session ID</string>
 
 </resources>

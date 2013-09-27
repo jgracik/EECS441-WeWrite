@@ -6,6 +6,7 @@ import java.util.Random;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
@@ -41,6 +42,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   private CollabrifyClient client;
   private EditTextCursor editor;
   private boolean getLatestEvent;
+  private Long sessId;
   
   @SuppressLint("NewApi")
   @Override
@@ -53,7 +55,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     
     Intent intent = getIntent();
     boolean isJoin = intent.getBooleanExtra(MainActivity.IS_JOIN, false);
-    long sessId = intent.getLongExtra(MainActivity.SESSION_ID, 0L);
+    sessId = Long.valueOf(intent.getLongExtra(MainActivity.SESSION_ID, 0L));
     
     Log.d(TAG, "isJoin: " + isJoin);
     Log.d(TAG, "sessId: " + sessId);
@@ -255,6 +257,11 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         //
         NavUtils.navigateUpFromSameTask(this);
         return true;
+      case R.id.action_display_session_id:
+    	Context context = getApplicationContext();
+    	Toast toast = Toast.makeText(context, sessId.toString(), Toast.LENGTH_LONG);
+    	toast.show();
+    	return true;
     }
     return super.onOptionsItemSelected(item);
   }
