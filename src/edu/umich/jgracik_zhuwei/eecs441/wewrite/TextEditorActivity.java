@@ -60,7 +60,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         Log.i(TAG, "updateTimer triggering update");
         undoableWrapper.sync(serverText.getText().toString());
       }
-      hSync.postDelayed(this, 5000);
+      hSync.postDelayed(this, 2000);  // 2000 ms
     }
   };
   
@@ -116,13 +116,17 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         }
 
         final EditorEvent fromServer;
+        boolean isFromThisUser = false;
         
-        if(eventType.equals("TEXT_CHANGE")) {
+        if(eventType.equals("TEXT_CHANGE")) 
+        {
           try
           {
             fromServer = EditorEvent.parseFrom(data);
-            applyTextEvent(fromServer);
-            if(fromServer.getUserid() != client.currentSessionParticipantId()) {
+            isFromThisUser = fromServer.getUserid() == client.currentSessionParticipantId();
+            Log.d(TAG, "### is from this user: " + isFromThisUser);
+            applyTextEvent(fromServer, isFromThisUser);
+            if(!isFromThisUser) {
               undoableWrapper.updateCursorOffset(fromServer);
             } else {
               runOnUiThread(new Runnable() {
@@ -327,7 +331,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   }
   
   // server events only
-  public void applyTextEvent(EditorEvent ev)
+  public void applyTextEvent(EditorEvent ev, boolean isFromThisUser)
   {
     Log.d(TAG, "in applyTextEvent");
     Editable e_text = Editable.Factory.getInstance().newEditable(serverText.getText());
@@ -365,7 +369,10 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     }
     
     serverText.setText(e_text);
-    undoableWrapper.setNeedToSync(true);
+    
+    if(!isFromThisUser) {
+      undoableWrapper.setNeedToSync(true);
+    }
   }
   
   public void undoOperation(View view)
