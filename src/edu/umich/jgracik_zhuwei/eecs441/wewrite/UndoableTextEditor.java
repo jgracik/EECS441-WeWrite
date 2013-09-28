@@ -37,10 +37,6 @@ public class UndoableTextEditor
   private boolean undoingOrRedoing;   // avoids adding undo/redo events to history
   private boolean generatingEvent;    // set true when text is being changed
   
-  //private Stack<HistoryEntry> moveEventStack; // needed to help make move atomic
-  //private DragListener d_listener;
-  //private boolean textMoveEvent = false;    // drag & drop move event occuring
-  
   /* Interface for notifying other classes of editor changes
    * TextEditorActivity implements this to know what to broadcast and when
    */
@@ -73,14 +69,6 @@ public class UndoableTextEditor
     e_listener = new EditorListener();
     editor.addTextChangedListener(e_listener);
     editor.addOnSelectionChangedListener(e_listener);
-    
-    /*
-     * This is specifically to handle move events via drag & drop
-     * No longer needed per spec update
-     */
-    //moveEventStack = new Stack<HistoryEntry>();
-    //d_listener = new DragListener();
-    //editor.setOnDragListener(d_listener);
   }
   
   public void setUserID(long id) 
@@ -107,57 +95,10 @@ public class UndoableTextEditor
   
   public EditorEvent createUndoRedoEvent(EditorEvent e, int type)
   {
-    //Editable editor_text = editor.getText();
-    //int newBeginIndex = e.getBeginIndex();
-    //int endIdx = e.getBeginIndex();
-    CharSequence csReplace;
-    CharSequence csOther;
+    // swap text ordering
+    CharSequence csReplace = e.getOldText();
+    CharSequence csOther = e.getNewText();
     
-    /*
-    if(type == UNDO_OP) {
-      csReplace = e.getOldText();
-      csOther = e.getNewText();
-    } else {
-      csReplace = e.getNewText();
-      csOther = e.getOldText();
-    }
-    */
-    
-    csReplace = e.getOldText();
-    csOther = e.getNewText();
-    
-    /*
-    try {
-      if(csReplace != null) {
-        endIdx += csOther.length();
-      }
-      
-      //TODO editor_text.replace(e.beginIndex, endIdx, csReplace);
-      
-      Log.d(TAG, "replace okay");
-    } catch(IndexOutOfBoundsException ex) {
-      // text has been deleted, so endIndex is now outside 
-      // the editor's range
-      Log.d(TAG, "performEdit exeption: " + ex.toString());
-      Log.d(TAG, "beginIdx=" + e.getBeginIndex() + ", endIdx=" + endIdx + ", editor length=" + editor_text.length() + ", replace: [" + csReplace + "]");
-
-      if(editor_text.length() < e.getBeginIndex()) {
-        // beginIndex is outside the editor's range: append
-        int appendIdx = editor_text.length();
-        //TODO editor_text.append(csReplace);
-        newBeginIndex = appendIdx; // update new index for future undos or redos
-
-        Log.d(TAG, "appending");
-      } else {
-        // beginIndex is inside range, end is outside
-        //TODO editor_text.insert(e.beginIndex, csReplace);
-        
-        Log.d(TAG, "inserting");
-      }
-    }
-    */
-    
-    /* broadcast change event */
     EditorEvent ee = EditorEvent.newBuilder()
         .setBeginIndex(e.getBeginIndex() + cursorOffset) /* TODO special case for undo, redo */
         .setNewText(csReplace.toString())
@@ -191,6 +132,7 @@ public class UndoableTextEditor
       if(redoHistory.size() > HISTORY_SIZE) {
         redoHistory.remove(0);
       }
+      editor.setSelection(ee.getBeginIndex());
       pendingUndo.remove(id);
     } else if(pendingRedo.contains(id)) {
       eel.triggerSync();
@@ -198,6 +140,7 @@ public class UndoableTextEditor
       if(undoHistory.size() > HISTORY_SIZE) {
         undoHistory.remove(0);
       }
+      editor.setSelection(ee.getBeginIndex() + ee.getNewText().length());
       pendingRedo.remove(id);
     }
   }
@@ -224,6 +167,18 @@ public class UndoableTextEditor
     needToSync = b;
   }
   
+  public boolean needsToSync()
+  {
+    Log.d(TAG, "needToSync: " + needToSync);
+    return needToSync;
+  }
+  
+  public boolean notBusy()
+  {
+    Log.d(TAG, "syncing: " + syncing + ", undoredo: " + undoingOrRedoing + ", genEvent: " + generatingEvent);
+    return !syncing && !undoingOrRedoing && !generatingEvent;
+  }
+  
   public void sync(String s)
   {
     syncing = true;
@@ -240,6 +195,7 @@ public class UndoableTextEditor
     cursorOffset = 0;
     
     editor.addTextChangedListener(e_listener);
+    needToSync = false;
     syncing = false;
   }
   
@@ -309,34 +265,6 @@ public class UndoableTextEditor
       change = s.subSequence(start, start + count);
       Log.d(TAG, "listener in onTextChanged, start: " + start + ", before: " + before + ", change: [" + change + "]");
       
-      /*
-       * This is specifically to handle move events via drag & drop
-       * No longer needed per spec update
-       */
-      /*
-      if(textMoveEvent) {
-        moveEventStack.push(new HistoryEntry(start, orig, change));
-        Log.d(TAG, "pushed event onto moveEventStack, onTextChanged returning");
-        return;
-      }
-      */
-      
-      /*
-      undoHistory.push(new HistoryEntry(start, orig, change));
-      
-      // swype-like keyboard in android sometimes duplicates events
-      // due to text prediction
-      if(change.toString().equals(orig.toString())) {
-        Log.d(TAG, "duplicate");
-        duplicate = true;
-        undoHistory.pop();
-      }
-      
-      if(undoHistory.size() > HISTORY_SIZE) {
-        undoHistory.remove(0);  // remove from bottom of stack
-      }
-      */
-      
       Log.d(TAG, "listener returning from method onTextChanged");
     }
 
@@ -363,6 +291,7 @@ public class UndoableTextEditor
       }
       
       duplicate = false;
+      generatingEvent = false;
     }
 
     @Override
@@ -386,55 +315,6 @@ public class UndoableTextEditor
       }
     }
     
-  }
-  
-  
-  /*
-   * This is specifically to handle move events via drag & drop
-   * No longer needed per spec update
-   */
-  /*
-  @SuppressLint("NewApi")
-  private class DragListener implements OnDragListener
-  {
-    public boolean onDrag(View v, DragEvent event)
-    {
-      if(event.getAction() == DragEvent.ACTION_DROP) {
-        // let editorlistener know that a move event is occuring
-        textMoveEvent = true;
-        
-        Log.d(TAG, "drag event ACTION_DROP, clip desc: " + event.getClipDescription().toString());
-      }
-      else if(event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
-        // get rid of android's automatic drag & drop spaces 
-        // and insert correct undo history
-        
-        // stack size should be 3 for move to start or end, 4 for anywhere else
-        if(moveEventStack.size() < 3) {
-          Log.d(TAG, "move event ended with stack size < 3");
-          textMoveEvent = false;
-          return false;
-        }
-        
-        undoingOrRedoing = true;
-        for(int i = 1; i < moveEventStack.size(); i++) {
-          moveEventStack.elementAt(i).cascade = moveEventStack.elementAt(i-1);
-        }
-        
-        undoHistory.push(moveEventStack.peek());
-        undoingOrRedoing = false;
-        
-        moveEventStack.clear(); // clear for next move event
-        
-        textMoveEvent = false;
-        
-        Log.d(TAG, "drag event ACTION_ENDED");
-      }
-      
-      return false;
-    }
-  }
-  */
-  
+  }  
   
 }
