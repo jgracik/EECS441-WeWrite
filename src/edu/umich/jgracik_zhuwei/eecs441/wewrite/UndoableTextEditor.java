@@ -1,6 +1,7 @@
 package edu.umich.jgracik_zhuwei.eecs441.wewrite;
 
 import java.util.Stack;
+import java.util.TreeSet;
 
 import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor.onSelectionChangedListener;
 import edu.umich.jgracik_zhuwei.eecs441.wewrite.EditTextCursor;
@@ -20,12 +21,18 @@ public class UndoableTextEditor
   
   private EditTextCursor editor;  // underlying view
   
-  private Stack<HistoryEntry> undoHistory;
-  private Stack<HistoryEntry> redoHistory;
+  private Stack<EditorEvent> undoHistory;
+  private Stack<EditorEvent> redoHistory;
+  private TreeSet<Integer> pendingUndo; // waiting to be received from server
+  private TreeSet<Integer> pendingRedo;
+  private TreeSet<Integer> pendingEvent;
 
   private EditorListener e_listener; 
   private long userid;
   private boolean connected;
+  private boolean needToSync;
+  private boolean syncing;
+  private int cursorOffset;
   
   private boolean undoingOrRedoing;   // avoids adding undo/redo events to history
   private boolean generatingEvent;    // set true when text is being changed
@@ -38,7 +45,8 @@ public class UndoableTextEditor
    * TextEditorActivity implements this to know what to broadcast and when
    */
   public interface EditorEventListener {
-    public void sendEvent(EditorEvent ee, String type);
+    public int sendEvent(EditorEvent ee, String type);
+    public void triggerSync();
   }
   
   private EditorEventListener eel;
@@ -51,10 +59,16 @@ public class UndoableTextEditor
     
     editor = edittext;
     connected = false;
+    needToSync = false;
+    syncing = false;
+    cursorOffset = 0;
     userid = 0L;
     
-    undoHistory = new Stack<HistoryEntry>();
-    redoHistory = new Stack<HistoryEntry>();
+    undoHistory = new Stack<EditorEvent>();
+    redoHistory = new Stack<EditorEvent>();
+    pendingUndo = new TreeSet<Integer>();
+    pendingRedo = new TreeSet<Integer>();
+    pendingEvent = new TreeSet<Integer>();
     
     e_listener = new EditorListener();
     editor.addTextChangedListener(e_listener);
@@ -69,90 +83,123 @@ public class UndoableTextEditor
     //editor.setOnDragListener(d_listener);
   }
   
-  public void setUserID(long id) {
+  public void setUserID(long id) 
+  {
     userid = id;
     connected = true;
   }
   
-  public void setEditorEventListener(EditorEventListener e) {
+  public void setEditorEventListener(EditorEventListener e) 
+  {
     eel = e;
   }
   
-  public HistoryEntry performEdit(HistoryEntry e, int type)
+  public EditorEvent createCursorEvent(int cursorIdx)
   {
-    Editable editor_text = editor.getText();
-    int endIdx = e.beginIndex;
+    /* TODO need to add offset? */
+    EditorEvent ee = EditorEvent.newBuilder()
+        .setNewCursorIdx(cursorIdx)
+        .setUserid(userid)
+    .build();
+    
+    return ee;
+  }
+  
+  public EditorEvent createUndoRedoEvent(EditorEvent e, int type)
+  {
+    //Editable editor_text = editor.getText();
+    //int newBeginIndex = e.getBeginIndex();
+    //int endIdx = e.getBeginIndex();
     CharSequence csReplace;
     CharSequence csOther;
     
+    /*
     if(type == UNDO_OP) {
-      csReplace = e.oldText;
-      csOther = e.newText;
+      csReplace = e.getOldText();
+      csOther = e.getNewText();
     } else {
-      csReplace = e.newText;
-      csOther = e.oldText;
+      csReplace = e.getNewText();
+      csOther = e.getOldText();
     }
+    */
     
+    csReplace = e.getOldText();
+    csOther = e.getNewText();
+    
+    /*
     try {
-      if(e.newText != null) {
+      if(csReplace != null) {
         endIdx += csOther.length();
       }
       
-      editor_text.replace(e.beginIndex, endIdx, csReplace);
-      
-      /*
-       * TODO BROADCAST CHANGE EVENT
-       */
+      //TODO editor_text.replace(e.beginIndex, endIdx, csReplace);
       
       Log.d(TAG, "replace okay");
     } catch(IndexOutOfBoundsException ex) {
+      // text has been deleted, so endIndex is now outside 
+      // the editor's range
       Log.d(TAG, "performEdit exeption: " + ex.toString());
-      Log.d(TAG, "beginIdx=" + e.beginIndex + ", endIdx=" + endIdx + ", editor length=" + editor_text.length() + ", replace: [" + csReplace + "]");
+      Log.d(TAG, "beginIdx=" + e.getBeginIndex() + ", endIdx=" + endIdx + ", editor length=" + editor_text.length() + ", replace: [" + csReplace + "]");
 
-      if(editor_text.length() < e.beginIndex) {
+      if(editor_text.length() < e.getBeginIndex()) {
+        // beginIndex is outside the editor's range: append
         int appendIdx = editor_text.length();
-        editor_text.append(csReplace);
-        e.beginIndex = appendIdx; // update new index for future undos or redos
-        
-        /*
-         * TODO BROADCAST CHANGE EVENT
-         */
-        
+        //TODO editor_text.append(csReplace);
+        newBeginIndex = appendIdx; // update new index for future undos or redos
+
         Log.d(TAG, "appending");
       } else {
-        editor_text.insert(e.beginIndex, csReplace);
-        
-        /*
-         * TODO BROADCAST CHANGE EVENT
-         */
+        // beginIndex is inside range, end is outside
+        //TODO editor_text.insert(e.beginIndex, csReplace);
         
         Log.d(TAG, "inserting");
       }
     }
+    */
     
-    if(e.cascade != null) {
-      Log.d(TAG, "cascading");
-      performEdit(e.cascade, type);
+    /* broadcast change event */
+    EditorEvent ee = EditorEvent.newBuilder()
+        .setBeginIndex(e.getBeginIndex() + cursorOffset) /* TODO special case for undo, redo */
+        .setNewText(csReplace.toString())
+        .setOldText(csOther.toString())
+        .setNewCursorIdx(editor.getSelectionStart())
+        .setUserid(userid)
+    .build();
+    
+    int eventId = eel.sendEvent(ee, "TEXT_CHANGE");
+    if(type == UNDO_OP) {
+      pendingUndo.add(eventId);
+    } else {
+      pendingRedo.add(eventId);
     }
-    return e;
+    /* * * */
+    
+    return ee;
   }
   
-  public HistoryEntry reverseCascade(HistoryEntry h)
+  public void confirmEvent(final int id, final EditorEvent ee)
   {
-    if(h == null) return null;
-    if(h.cascade == null) return h;
-    
-    HistoryEntry prev = null;
-    HistoryEntry curr = h;
-    
-    while(curr != null) {
-      HistoryEntry next = curr.cascade;
-      curr.cascade = prev;
-      prev = curr;
-      curr = next; 
+    if(pendingEvent.contains(id)) {
+      undoHistory.push(ee);
+      if(undoHistory.size() > HISTORY_SIZE) {
+        undoHistory.remove(0);
+      }
+      pendingEvent.remove(id);
+    } else if(pendingUndo.contains(id)) {
+      eel.triggerSync();
+      redoHistory.push(ee);
+      if(redoHistory.size() > HISTORY_SIZE) {
+        redoHistory.remove(0);
+      }
+      pendingUndo.remove(id);
+    } else if(pendingRedo.contains(id)) {
+      eel.triggerSync();
+      undoHistory.push(ee);
+      if(undoHistory.size() > HISTORY_SIZE) {
+        undoHistory.remove(0);
+      }
+      pendingRedo.remove(id);
     }
-    
-    return prev;
   }
   
   public void undo()
@@ -164,13 +211,58 @@ public class UndoableTextEditor
     
     undoingOrRedoing = true;
     
-    HistoryEntry undoEvent = undoHistory.pop();
-    HistoryEntry ev = performEdit(undoEvent, UNDO_OP);
-    redoHistory.push(reverseCascade(ev));
+    EditorEvent undoEvent = undoHistory.pop();
+    createUndoRedoEvent(undoEvent, UNDO_OP);
     
     undoingOrRedoing = false;
     
     Log.d(TAG, "performed undo operation, returning from undo()");
+  }
+  
+  public void setNeedToSync(boolean b) 
+  {
+    needToSync = b;
+  }
+  
+  public void sync(String s)
+  {
+    syncing = true;
+    editor.removeTextChangedListener(e_listener);
+    
+    int origIdx = editor.getSelectionStart() + cursorOffset;
+    editor.setText(s);
+    
+    if(origIdx <= editor.length()) {
+      editor.setSelection(origIdx);
+    } else {
+      editor.setSelection(editor.length());
+    }
+    cursorOffset = 0;
+    
+    editor.addTextChangedListener(e_listener);
+    syncing = false;
+  }
+  
+  public void updateCursorOffset(EditorEvent ee)
+  {
+    if(ee.getBeginIndex() > (editor.getSelectionStart() + cursorOffset)) {
+      // event occured after current pos with offset, no need to update offset
+      return;
+    }
+
+    int endIdx = ee.getBeginIndex();
+    CharSequence csNew = ee.getNewText();
+    CharSequence csOld = ee.getOldText();
+    
+    if(csNew.length() == 0) {
+      endIdx += csOld.length();
+    } else if(csOld.length() == 0) {
+      endIdx += csNew.length();
+    }
+    
+    cursorOffset += (endIdx - ee.getBeginIndex());
+    
+    Log.d(TAG, "cursor offset updated, " + (endIdx - ee.getBeginIndex() + " added, new offset: " + cursorOffset));
   }
   
   public void redo()
@@ -182,32 +274,12 @@ public class UndoableTextEditor
     
     undoingOrRedoing = true;
 
-    HistoryEntry redoEvent = redoHistory.pop();
-    HistoryEntry ev = performEdit(redoEvent, REDO_OP);
-    undoHistory.push(reverseCascade(ev));
+    EditorEvent redoEvent = redoHistory.pop();
+    createUndoRedoEvent(redoEvent, REDO_OP);
     
     undoingOrRedoing = false;
     
     Log.d(TAG, "performed redo operation, returning from redo()");
-  }
-  
-  
-  /* Undo history object - holds before and after text with index */
-  private class HistoryEntry
-  {
-    int beginIndex;
-    CharSequence oldText;
-    CharSequence newText;
-    HistoryEntry cascade;
-    
-    public HistoryEntry(int idx, CharSequence orig, CharSequence replace)
-    {
-      beginIndex = idx;
-      oldText = orig;
-      newText = replace;
-      cascade = null;
-    }
-    
   }
   
   
@@ -221,17 +293,18 @@ public class UndoableTextEditor
     public void beforeTextChanged(CharSequence s, int start, int count, int after)
     {
       // no need to save changes resulting from an undo or redo
-      if(undoingOrRedoing) return;
+      if(undoingOrRedoing || syncing) return;
       
       generatingEvent = true;
       
+      beginIdx = start;
       orig = s.subSequence(start, start + count);
       Log.d(TAG, "listener in beforeTextChanged, start: " + start + ", count: " + count + ", orig: [" + orig + "]");
     }
     
     public void onTextChanged(CharSequence s, int start, int before, int count)
     {
-      if(undoingOrRedoing) return;
+      if(undoingOrRedoing || syncing) return;
       
       change = s.subSequence(start, start + count);
       Log.d(TAG, "listener in onTextChanged, start: " + start + ", before: " + before + ", change: [" + change + "]");
@@ -248,6 +321,7 @@ public class UndoableTextEditor
       }
       */
       
+      /*
       undoHistory.push(new HistoryEntry(start, orig, change));
       
       // swype-like keyboard in android sometimes duplicates events
@@ -261,19 +335,21 @@ public class UndoableTextEditor
       if(undoHistory.size() > HISTORY_SIZE) {
         undoHistory.remove(0);  // remove from bottom of stack
       }
+      */
       
-      Log.d(TAG, "listener returning from method onTextChanged, updated undoHistory");
+      Log.d(TAG, "listener returning from method onTextChanged");
     }
 
     public void afterTextChanged(Editable s)
     {
-      // do nothing
       Log.d(TAG, "afterTextChanged");
       Log.d(TAG, s.toString());
       
+      if(undoingOrRedoing || syncing) return;
+      
       // create EditorEvent object
       EditorEvent textChange = EditorEvent.newBuilder()
-          .setBeginIndex(beginIdx)
+          .setBeginIndex(beginIdx + cursorOffset)
           .setNewText(change.toString())
           .setOldText(orig.toString())
           .setNewCursorIdx(editor.getSelectionStart())
@@ -282,11 +358,11 @@ public class UndoableTextEditor
       
       // broadcast text change event
       if(connected && !duplicate) {
-        eel.sendEvent(textChange, "TEXT_CHANGE");
+        int eventId = eel.sendEvent(textChange, "TEXT_CHANGE");
+        pendingEvent.add(eventId);
       }
       
       duplicate = false;
-      generatingEvent = false;
     }
 
     @Override
@@ -295,6 +371,7 @@ public class UndoableTextEditor
       /* send cursor change event to server */
       Log.i(TAG, "cursor location changed to " + selStart);
       if(!generatingEvent) {
+        Log.i(TAG, "not generating event, sending cursor change");
         cursorIdx = selStart;
         
         /*
@@ -302,6 +379,10 @@ public class UndoableTextEditor
          * keep track of time last cursor change was sent
          * and only update after some elapsed time threshold
          */
+        EditorEvent ee = createCursorEvent(cursorIdx);
+        eel.sendEvent(ee, "CURSOR_CHANGE");
+      } else {
+        generatingEvent = true;
       }
     }
     
