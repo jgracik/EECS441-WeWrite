@@ -183,6 +183,7 @@ containing a value of this type.
         public static final int ic_launcher=0x7f020019;
     }
     public static final class id {
+        public static final int action_display_session_id=0x7f050008;
         public static final int action_settings=0x7f050007;
         public static final int editor_obj=0x7f050005;
         public static final int enter_text_dialog_field=0x7f050006;
@@ -303,6 +304,9 @@ containing a value of this type.
         public static final int greeting=0x7f06001b;
         public static final int hello_world=0x7f060016;
         public static final int menu_settings=0x7f060017;
+        /**  action bar 
+         */
+        public static final int session_id=0x7f06002c;
         public static final int title_activity_main=0x7f060018;
         /**  editor 
          */

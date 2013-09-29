@@ -1,7 +1,7 @@
 package edu.umich.jgracik_zhuwei.eecs441.wewrite;
 
 import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.Random;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -28,7 +28,6 @@ import edu.umich.imlc.collabrify.client.CollabrifyAdapter;
 import edu.umich.imlc.collabrify.client.CollabrifyListener;
 import edu.umich.imlc.collabrify.client.CollabrifyClient;
 import edu.umich.imlc.collabrify.client.CollabrifyParticipant;
-import edu.umich.imlc.collabrify.client.CollabrifySession;
 import edu.umich.imlc.collabrify.client.exceptions.CollabrifyException;
 import edu.umich.imlc.collabrify.client.exceptions.ConnectException;
 
@@ -41,27 +40,52 @@ import edu.umich.jgracik_zhuwei.eecs441.wewrite.UndoableTextEditor.EditorEventLi
 public class TextEditorActivity extends FragmentActivity implements LeaveSessionListener, EditorEventListener
 {
   private static final String TAG = "TextEditorActivity";
+  
+  // local editor variables
   private UndoableTextEditor undoableWrapper;
+  private EditTextCursor editor;
+  private int latestSubIdSent;
+  
+  // collabrify & non-local objects and variables
   private CollabrifyListener collabrifyListener;
   private CollabrifyClient client;
-  private EditTextCursor editor;
   private EditText serverText;
+  private LinkedList<EditorEvent> eventQueue;
+  private LinkedList<Integer> eventSubIds;
   private boolean getLatestEvent;
+  private int forceNext;
   private long sessId;
   private long orderIdCtr;
+  private int latestSubIdApplied;
   
+  // objects to implement timer
+  private int lastSyncSubId;
   private Handler hSync;
-  
   private Runnable updateTimer = new Runnable()
   {
     public void run()
     {
-      Log.i(TAG, "updateTimer tick");
-      if(undoableWrapper.notBusy() && undoableWrapper.needsToSync()) {
-        Log.i(TAG, "updateTimer triggering update");
+      Log.i("SYNC", "updateTimer tick");
+      Log.d("ORDERING", "latest sub applied: " + latestSubIdApplied + ", latest sent: " + latestSubIdSent);
+      if(latestSubIdApplied != latestSubIdSent) {
+        applyTextEvent(0, false);
+        hSync.postDelayed(this, 1500);
+        return;
+      } else {
+        if(lastSyncSubId < latestSubIdApplied) {
+          undoableWrapper.sync(serverText.getText().toString());
+          lastSyncSubId = latestSubIdApplied;
+          hSync.postDelayed(this, 1500);
+          return;
+        }
+      }
+      Log.d("ORDERING", "got past sub id stuff in handler");
+      if(undoableWrapper.notBusy() && applyTextEvent(0, false)) {
+        Log.i("SYNC", "updateTimer triggering update");
+        lastSyncSubId = latestSubIdApplied;
         undoableWrapper.sync(serverText.getText().toString());
       }
-      hSync.postDelayed(this, 2000);  // 2000 ms
+      hSync.postDelayed(this, 1500);  // 1500 ms
     }
   };
   
@@ -74,36 +98,36 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     // Show the Up button in the action bar.
     setupActionBar();
     
+    // join parameters stored in intent
     Intent intent = getIntent();
     boolean isJoin = intent.getBooleanExtra(MainActivity.IS_JOIN, false);
     sessId = intent.getLongExtra(MainActivity.SESSION_ID, 0L);
     
-    Log.d(TAG, "isJoin: " + isJoin);
-    Log.d(TAG, "sessId: " + sessId);
-    
+    // render editor, but disable until connected
     editor = (EditTextCursor) findViewById(R.id.editor_obj);
     editor.setLongClickable(false);
-    editor.setEnabled(false);   // do not allow editing until connection is established
-    editor.setFocusable(false); // ^^^
+    editor.setEnabled(false);
+    editor.setFocusable(false);
     editor.setHint("Connecting, please wait...");
     undoableWrapper = new UndoableTextEditor(editor);
     undoableWrapper.setEditorEventListener(this);
+    latestSubIdSent = -1;
     
+    // non-local object setup
     serverText = new EditText(this);
-    orderIdCtr = 0L;
+    eventQueue = new LinkedList<EditorEvent>();
+    eventSubIds = new LinkedList<Integer>();
+    orderIdCtr = 0L; 
+    forceNext = 0;
+    latestSubIdApplied = -1;
+
     hSync = new Handler();
     hSync.removeCallbacks(updateTimer);
-    // updateTimer starts sending in enableTextEditor
+    lastSyncSubId = 0;
     
+    // setup collabrify listener
     collabrifyListener = new CollabrifyAdapter() 
-    {
-      
-      @Override
-      public void onDisconnect() 
-      {
-        Log.i(TAG, "collabrifyListener: disconnect");
-      }
-      
+    {      
       @Override
       public void onReceiveEvent(final long orderId, final int subId,
           String eventType, final byte[] data) 
@@ -124,9 +148,11 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
           try
           {
             fromServer = EditorEvent.parseFrom(data);
+            Log.d("ORDERING", "rec event id = " + orderId + ", text = " + fromServer.getNewText());
             isFromThisUser = fromServer.getUserid() == client.currentSessionParticipantId();
-            Log.d(TAG, "### is from this user: " + isFromThisUser);
-            applyTextEvent(fromServer, isFromThisUser);
+            Log.d(TAG, "### is from this user?: " + isFromThisUser);
+            eventQueue.add(fromServer);
+            eventSubIds.add(subId);
             if(!isFromThisUser) {
               undoableWrapper.updateCursorOffset(fromServer);
             } else {
@@ -148,21 +174,14 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
           try
           {
             fromServer = EditorEvent.parseFrom(data);
-            /* TODO update cursor position hash map */
+            isFromThisUser = fromServer.getUserid() == client.currentSessionParticipantId();
+            eventQueue.add(fromServer);
+            eventSubIds.add(subId);
           }
           catch( InvalidProtocolBufferException e )
           {
             e.printStackTrace();
           }
-        }
-      }
-      
-      @Override
-      public void onReceiveSessionList(final List<CollabrifySession> sessionList) 
-      {
-        Log.i(TAG, "collabrifyListener: received session list");
-        for(int i = 0; i < sessionList.size(); i++) {
-          Log.i(TAG, "### " + sessionList.get(i).toString());
         }
       }
       
@@ -220,29 +239,11 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         });
       }
       
-      @Override
-      public byte[] onBaseFileChunkRequested(long currentBaseFileSize)
-      {
-        Log.i(TAG, "collabrifyListener: base file chunk requested");
-        return null;
-      }
-      
-      @Override
-      public void onBaseFileChunkReceived(byte[] baseFileChunk)
-      {
-        Log.i(TAG, "collabrifyListener: base file chunk recvd");
-      }
-      
-      @Override
-      public void onBaseFileUploadComplete(long baseFileSize)
-      {
-        Log.i(TAG, "collabrifyListener: base file upload complete");
-      }
-      
     };
     
     getLatestEvent = false;
     
+    // init collabrify client
     try {
       client = new CollabrifyClient(this, "user email", "user display name",
           "441fall2013@umich.edu", "XY3721425NoScOpE", getLatestEvent,
@@ -253,6 +254,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       ce.printStackTrace();
     }
     
+    // if join parameters received, try to join
     if(isJoin) {
       try
       {
@@ -263,11 +265,15 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       {
         e1.printStackTrace();
         Toast.makeText(this, "Unable to connect to session", Toast.LENGTH_LONG).show();
+        hSync.removeCallbacks(updateTimer);
+        finish();
       }
       catch( CollabrifyException e1 )
       {
         e1.printStackTrace();
         Toast.makeText(this, "Unable to connect to session", Toast.LENGTH_LONG).show();
+        hSync.removeCallbacks(updateTimer);
+        finish();
       }
     } else {
       Random rand = new Random();
@@ -328,18 +334,33 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
         NavUtils.navigateUpFromSameTask(this);
         return true;
       case R.id.action_display_session_id:
-    	Context context = getApplicationContext();
-    	Toast toast = Toast.makeText(context, String.valueOf(sessId), Toast.LENGTH_LONG);
-    	toast.show();
-    	return true;
+        Context context = getApplicationContext();
+        Toast toast = Toast.makeText(context, String.valueOf(sessId), Toast.LENGTH_LONG);
+        toast.show();
+        return true;
     }
     return super.onOptionsItemSelected(item);
   }
   
   // server events only
-  public void applyTextEvent(EditorEvent ev, boolean isFromThisUser)
+  public boolean applyTextEvent(int iter, boolean setNeedToSync)
   {
     Log.d(TAG, "in applyTextEvent");
+    if(eventQueue.isEmpty()) {
+      return setNeedToSync;
+    }
+    
+    EditorEvent ev = eventQueue.poll();
+    Integer sub = eventSubIds.poll();
+    
+    if(!ev.hasBeginIndex()) {
+      // is cursor event, ignore
+      if(client.currentSessionParticipantId() == ev.getUserid()) {
+        latestSubIdApplied = sub.intValue();
+      }
+      return applyTextEvent(iter, setNeedToSync);
+    }
+    
     Editable e_text = Editable.Factory.getInstance().newEditable(serverText.getText());
     int endIdx = ev.getBeginIndex();
     CharSequence csReplace = ev.getNewText();
@@ -374,10 +395,25 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       }
     }
     
-    serverText.setText(e_text);
+    Log.d("ORDERING", "applied text event: " + ev.getNewText());
     
-    if(!isFromThisUser) {
-      undoableWrapper.setNeedToSync(true);
+    if(client.currentSessionParticipantId() != ev.getUserid()) {
+      setNeedToSync = true;
+    } else {
+      latestSubIdApplied = sub.intValue();
+      if(forceNext > 0) {
+        setNeedToSync = true;
+        forceNext--;
+      }
+    }
+    
+    Log.d("ORDERING", "need to sync? " + setNeedToSync);
+    
+    serverText.setText(e_text);
+    if(eventQueue.isEmpty() || iter == 10) {
+      return setNeedToSync;
+    } else {
+      return applyTextEvent(iter + 1, setNeedToSync);
     }
   }
   
@@ -477,6 +513,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
       {
         client.leaveSession(false);
         Toast.makeText(this, "Disconnected", Toast.LENGTH_LONG).show();
+        hSync.removeCallbacks(updateTimer);
         finish();
       } catch (CollabrifyException ce) {
         ce.printStackTrace();
@@ -508,6 +545,19 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
   {
     String serverTextStr = new String(serverText.getText().toString());
     undoableWrapper.sync(serverTextStr);
+  }
+
+  @Override
+  public void forceNextSync()
+  {
+    forceNext++;
+  }
+
+  @Override
+  public void setLatestSubId(int id)
+  {
+    latestSubIdSent = id;
+    
   }
 
 }

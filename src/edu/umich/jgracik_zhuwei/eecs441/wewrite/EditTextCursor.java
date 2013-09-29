@@ -35,6 +35,11 @@ public class EditTextCursor extends EditText
   {
     listener = oscl;
   }
+  
+  public void removeOnSelectionChangedListener()
+  {
+    listener = null;
+  }
 
   protected void onSelectionChanged(int selStart, int selEnd) 
   {
