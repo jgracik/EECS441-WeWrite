@@ -16,6 +16,7 @@ import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.NavUtils;
 import android.text.Editable;
+import android.text.InputType;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -153,6 +154,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
             Log.d(TAG, "### is from this user?: " + isFromThisUser);
             eventQueue.add(fromServer);
             eventSubIds.add(subId);
+            undoableWrapper.updateUndoRedoStacks(fromServer);
             if(!isFromThisUser) {
               undoableWrapper.updateCursorOffset(fromServer);
             } else {

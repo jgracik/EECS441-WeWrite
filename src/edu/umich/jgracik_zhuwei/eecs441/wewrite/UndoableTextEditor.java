@@ -124,6 +124,43 @@ public class UndoableTextEditor
     return ee;
   }
   
+  public void updateUndoRedoStacks(EditorEvent ee)
+  {
+    updateStack(undoHistory, ee);
+    updateStack(redoHistory, ee);
+  }
+  
+  public void updateStack(Stack<EditorEvent> history, EditorEvent ee)
+  {
+    int newIdx = ee.getBeginIndex();
+    for(int i = 0; i < history.size(); i++)
+    {
+      EditorEvent inStack = history.get(i);
+      
+      // case 1: insert or delete earlier than stack event's start index
+      // shift start index
+      if(newIdx <= inStack.getBeginIndex()) {
+        int replaceIdx = inStack.getBeginIndex() + (ee.getNewText().length() - ee.getOldText().length());
+        EditorEvent replacement = EditorEvent.newBuilder()
+            .setBeginIndex(replaceIdx)
+            .setNewText(inStack.getNewText())
+            .setOldText(inStack.getOldText())
+            .setNewCursorIdx(replaceIdx + inStack.getNewText().length())
+            .setUserid(userid)
+        .build();
+        history.set(i, replacement);
+      }
+      
+      // case 2: other user insert or delete into a word that was already written
+      // remove the old event from history
+      else if(ee.getUserid() != inStack.getUserid() &&
+              newIdx > inStack.getBeginIndex() && 
+              newIdx < (inStack.getBeginIndex() + inStack.getNewText().length())) {
+        history.remove(i);
+      }
+    }
+  }
+  
   public void confirmEvent(final int id, final EditorEvent ee)
   {
     Log.d("ORDERING", "event confirmed.  id: " + id + ", text: " + ee.getNewText());
@@ -198,13 +235,29 @@ public class UndoableTextEditor
     editor.removeOnSelectionChangedListener();
     
     int origIdx = editor.getSelectionStart() + cursorOffset;
+    int oldLen = editor.length();
+    int newLen = s.length();
+    
     editor.setText(s);
+    
     
     if(origIdx <= editor.length()) {
       editor.setSelection(origIdx);
     } else {
       editor.setSelection(editor.length());
     }
+    
+    
+    /*
+    try {
+      editor.setSelection(origIdx + (newLen - oldLen) - 1);
+    } catch(Exception e) {
+      Log.e(TAG, "ERROR SETTING SELECTION AFTER SYNC");
+      e.printStackTrace();
+      editor.setSelection(editor.length());
+    }
+    */
+    
     needToSync = false;
     cursorOffset = 0;
     
