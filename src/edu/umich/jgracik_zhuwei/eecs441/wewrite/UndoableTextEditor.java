@@ -235,8 +235,8 @@ public class UndoableTextEditor
     editor.removeOnSelectionChangedListener();
     
     int origIdx = editor.getSelectionStart() + cursorOffset;
-    int oldLen = editor.length();
-    int newLen = s.length();
+    //int oldLen = editor.length();
+    //int newLen = s.length();
     
     editor.setText(s);
     

@@ -9,7 +9,7 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context=".TextEditorActivity" >
     
-    <LinearLayout
+   <LinearLayout
 	    android:layout_width="match_parent"
 	    android:layout_height="wrap_content"
 	    android:gravity="center"
@@ -28,13 +28,6 @@
 		    android:layout_height="wrap_content"
 		    android:onClick="redoOperation"
 		    android:text="@string/button_redo" />
-		
-		<Button 
-		    android:layout_weight="1"
-		    android:layout_width="0dp"
-		    android:layout_height="wrap_content"
-		    android:onClick="saveFile"
-		    android:text="@string/button_save" />
 		
 		<Button 
 		    android:layout_weight="1"

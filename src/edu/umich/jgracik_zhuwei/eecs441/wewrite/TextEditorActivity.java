@@ -16,7 +16,6 @@ import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.NavUtils;
 import android.text.Editable;
-import android.text.InputType;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -424,14 +423,7 @@ public class TextEditorActivity extends FragmentActivity implements LeaveSession
     undoableWrapper.undo();
   }
   
-  public void saveFile(View view)
-  {
-    /* TODO 
-     * TEMPORARY - force the local editor to sync with the server-only editor
-     * for preliminary testing
-     */
-    undoableWrapper.sync(serverText.getText().toString());
-  }
+
   
   public void redoOperation(View view)
   {
